@@ -83,6 +83,13 @@ class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
     def send_PRIVMSG(self, msg):
         (target, content) = msg.args
         print repr(msg)
+
+        # ACTION
+        if content.startswith('\x01') and content.endswith('\x01'):
+            content = content[1:-1].split(' ', 1)
+            if len(content) == 2 and content[0] == 'ACTION':
+                content = '* ' + content[1]
+
         if isChannel(target):
             self.bot.send_group_msg(reply_content=content, group_code=target[1:], msg_id=self.msg_id)
         else:

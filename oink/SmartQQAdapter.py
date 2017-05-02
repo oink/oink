@@ -102,19 +102,19 @@ class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
         self.msg_id += 1
 
 def toIrcNick(nick):
-    nick = str(nick).translate(None, '# \t!@$')
+    return str(nick).translate(None, '# \t!@$')
 
 @on_group_message(name='SmartQQAdapter[group]')
 def adapter_group(msg, bot):
     adapter.bot = bot
-    prefix = str("%s!%s@%s" % (toIrcNick(msg.src_sender_name), msg.send_uin, 'qq.com'))
+    prefix = str("%s!%s@%s" % (toIrcNick(msg.src_sender_name), msg.send_uin, 'w.qq.com'))
     msg = ircmsgs.privmsg('#' + str(msg.group_code), adapter.fixBotMessage(msg.content), prefix);
     adapter.msgs.append(msg)
 
 @on_private_message(name='SmartQQAdapter[private]')
 def adapter_private(msg, bot):
     adapter.bot = bot
-    prefix = str("%s!%s@%s" % (msg.from_uin, msg.from_uin, 'qq.com'))
+    prefix = str("%s!%s@%s" % (msg.from_uin, msg.from_uin, 'w.qq.com'))
     msg = ircmsgs.privmsg(adapter.nick, msg.content, prefix)
     adapter.msgs.append(msg)
 

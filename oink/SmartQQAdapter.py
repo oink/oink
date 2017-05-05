@@ -65,14 +65,9 @@ class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
     def name(self):
         return '%s(%s)' % (self.__class__.__name__, self.irc)
 
-    def fixBotMessage(self, message):
-        if message.startswith(self.atNickPrefix):
-            message = self.nick + ': ' + message[len(self.atNickPrefix):]
-        return message
-
     def send_NICK(self, msg):
         self.nick = msg.args[0]
-        self.atNickPrefix = '@%s ' % self.nick
+        pass
 
     def send_USER(self, msg):
         self.connect()
@@ -108,7 +103,7 @@ def toIrcNick(nick):
 def adapter_group(msg, bot):
     adapter.bot = bot
     prefix = str("%s!%s@%s" % (toIrcNick(msg.src_sender_name), msg.send_uin, 'w.qq.com'))
-    msg = ircmsgs.privmsg('#' + str(msg.group_code), adapter.fixBotMessage(msg.content), prefix);
+    msg = ircmsgs.privmsg('#' + str(msg.group_code), msg.content, prefix);
     adapter.msgs.append(msg)
 
 @on_private_message(name='SmartQQAdapter[private]')

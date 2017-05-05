@@ -23,7 +23,7 @@ import smart_qq_bot.main as smart_qq_bot_main
 newDriver = None
 
 def smart_qq_main():
-    smart_qq_bot_main.main_loop(True)
+    smart_qq_bot_main.main_loop(no_gui=True, http=True)
 
 class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
     def __init__(self, irc):

@@ -33,8 +33,17 @@ class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
         drivers.IrcDriver.__init__(self, irc)
         drivers.ServersMixin.__init__(self, irc)
         self.msgs = []
-        global adapter
+
         adapter = self
+        @on_group_message(name='SmartQQAdapter[group]')
+        def adapter_group_message(msg, bot):
+            adapter.bot = bot
+            adapter.adapt_group_message(msg)
+
+        @on_private_message(name='SmartQQAdapter[private]')
+        def adapter_private_message(msg, bot):
+            adapter.bot = bot
+            adapter.adapt_private_message(msg)
 
     def run(self):
         time.sleep(conf.supybot.drivers.poll())
@@ -49,7 +58,7 @@ class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
                 continue
             method(msg)
         while self.msgs:
-            adapter.irc.feedMsg(self.msgs.pop())
+            self.irc.feedMsg(self.msgs.pop())
 
     def connect(self, **kwargs):
         thread = Thread(target=smart_qq_main)
@@ -96,22 +105,19 @@ class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
             self.bot.send_friend_msg(reply_content=content, uin=target, msg_id=self.msg_id)
         self.msg_id += 1
 
-def toIrcNick(nick):
-    return str(nick).translate(None, '# \t!@$')
+    @staticmethod
+    def toIrcNick(nick):
+        return str(nick).translate(None, '# \t!@$')
 
-@on_group_message(name='SmartQQAdapter[group]')
-def adapter_group(msg, bot):
-    adapter.bot = bot
-    prefix = str("%s!%s@%s" % (toIrcNick(msg.src_sender_name), msg.send_uin, 'w.qq.com'))
-    msg = ircmsgs.privmsg('#' + str(msg.group_code), msg.content, prefix);
-    adapter.msgs.append(msg)
+    def adapt_group_message(self, msg):
+        prefix = str("%s!%s@%s" % (SmartQQAdapter.toIrcNick(msg.src_sender_name), msg.send_uin, 'w.q.com'))
+        msg = ircmsgs.privmsg('#' + str(msg.group_code), msg.content, prefix);
+        self.msgs.append(msg)
 
-@on_private_message(name='SmartQQAdapter[private]')
-def adapter_private(msg, bot):
-    adapter.bot = bot
-    prefix = str("%s!%s@%s" % (msg.from_uin, msg.from_uin, 'w.qq.com'))
-    msg = ircmsgs.privmsg(adapter.nick, msg.content, prefix)
-    adapter.msgs.append(msg)
+    def adapt_private_message(self, msg):
+        prefix = str("%s!%s@%s" % (msg.from_uin, msg.from_uin, 'w.q.com'))
+        msg = ircmsgs.privmsg(self.nick, msg.content, prefix)
+        self.msgs.append(msg)
 
 def newDriverForSupybot(irc, moduleName=None):
     print "Driver for " + irc.network

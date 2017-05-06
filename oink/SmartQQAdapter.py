@@ -38,12 +38,12 @@ class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
         @on_group_message(name='SmartQQAdapter[group]')
         def adapter_group_message(msg, bot):
             adapter.bot = bot
-            adapter.adapt_group_message(msg)
+            adapter.adaptGroupMessage(msg)
 
         @on_private_message(name='SmartQQAdapter[private]')
         def adapter_private_message(msg, bot):
             adapter.bot = bot
-            adapter.adapt_private_message(msg)
+            adapter.adaptPrivateMessage(msg)
 
     def run(self):
         time.sleep(conf.supybot.drivers.poll())
@@ -91,7 +91,6 @@ class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
 
     def send_PRIVMSG(self, msg):
         (target, content) = msg.args
-        print repr(msg)
 
         # ACTION
         if content.startswith('\x01') and content.endswith('\x01'):
@@ -100,22 +99,46 @@ class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
                 content = '* ' + content[1]
 
         if isChannel(target):
-            self.bot.send_group_msg(reply_content=content, group_code=target[1:], msg_id=self.msg_id)
+            groupId = str(target[1:])
+            groupCode = self.groupIdToCode[groupId]
+            self.bot.send_group_msg(reply_content=content, group_code=groupCode, msg_id=self.msg_id)
         else:
-            self.bot.send_friend_msg(reply_content=content, uin=target, msg_id=self.msg_id)
+            guid = str(target)
+            uin = self.guidToUin[guid]
+            self.bot.send_friend_msg(reply_content=content, uin=uin, msg_id=self.msg_id)
         self.msg_id += 1
 
     @staticmethod
     def toIrcNick(nick):
         return str(nick).translate(None, '# \t!@$')
 
-    def adapt_group_message(self, msg):
-        prefix = str("%s!%s@%s" % (SmartQQAdapter.toIrcNick(msg.src_sender_name), msg.send_uin, 'w.q.com'))
-        msg = ircmsgs.privmsg('#' + str(msg.group_code), msg.content, prefix);
+    uinToGuid = {}
+    guidToUin = {}
+    groupIdToCode = {}
+    def toPrefix(self, nick, uin, uidGetter):
+        if uin in self.uinToGuid:
+            guid = self.uinToGuid[uin]
+        else:
+            self.uinToGuid[uin] = guid = uidGetter()
+            self.guidToUin[guid] = uin
+
+        return "%s!%s@%s" % (nick or guid, guid, 'qq.com')
+
+    def adaptGroupMessage(self, msg):
+        uin = msg.send_uin
+        nick = self.toIrcNick(msg.src_sender_card) or self.toIrcNick(msg.src_sender_name)
+        prefix = self.toPrefix(nick, uin, lambda: msg.src_sender_id)
+
+        groupId = str(msg.src_group_id)
+        self.groupIdToCode[groupId] = msg.group_code
+
+        msg = ircmsgs.privmsg('#' + groupId, msg.content, prefix);
         self.msgs.append(msg)
 
-    def adapt_private_message(self, msg):
-        prefix = str("%s!%s@%s" % (msg.from_uin, msg.from_uin, 'w.q.com'))
+    def adaptPrivateMessage(self, msg):
+        uin = msg.from_uin
+        prefix = self.toPrefix(None, uin, lambda: self.bot.uin_to_account(uin))
+
         msg = ircmsgs.privmsg(self.nick, msg.content, prefix)
         self.msgs.append(msg)
 

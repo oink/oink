@@ -20,8 +20,11 @@ signal.signal(signal.SIGTERM, _termHandler)
 import time
 import optparse
 import textwrap
+import logging
 
 started = time.time()
+
+from smart_qq_bot.logger import logger
 
 import supybot
 import supybot.utils as utils
@@ -101,6 +104,10 @@ def run():
                       'will be logged in this script.')
 
     (options, args) = parser.parse_args()
+    if options.debug:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
 
     if len(args) > 1:
         parser.error("""Only one configuration file should be specified.""")
@@ -194,6 +201,7 @@ def run():
     import supybot.plugins.Owner as Owner
     import SmartQQAdapter
     SmartQQAdapter.newDriver = drivers.newDriver
+    SmartQQAdapter.debug = options.debug
     drivers.newDriver = SmartQQAdapter.newDriverForSupybot
 
     owner = Owner.Class()

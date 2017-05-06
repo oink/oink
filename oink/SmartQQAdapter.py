@@ -5,10 +5,13 @@ Supybot driver adapter to SmartQQ
 """
 
 import time
+import logging
+
 from threading import Thread
 from supybot import (conf, drivers, ircmsgs)
 from supybot.ircutils import isChannel
 
+from smart_qq_bot.logger import logger
 from smart_qq_bot.messages import (GroupMsg, PrivateMsg, DiscussMsg, KICK_MSG)
 from smart_qq_bot.signals import (
     on_all_message,
@@ -21,9 +24,10 @@ import smart_qq_bot.main as smart_qq_bot_main
 
 # origin one
 newDriver = None
+debug = False
 
 def smart_qq_main():
-    smart_qq_bot_main.main_loop(no_gui=True, http=True)
+    smart_qq_bot_main.main_loop(no_gui=True, debug=debug, http=True)
 
 class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
     def __init__(self, irc):

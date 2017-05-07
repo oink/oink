@@ -130,7 +130,7 @@ class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
 
     def adaptGroupMessage(self, msg):
         uin = msg.send_uin
-        nick = self.toIrcNick(msg.src_sender_card) or self.toIrcNick(msg.src_sender_name)
+        nick = msg.src_sender_card and self.toIrcNick(msg.src_sender_card) or self.toIrcNick(msg.src_sender_name)
         prefix = self.toPrefix(nick, uin, lambda: msg.src_sender_id)
 
         groupId = str(msg.src_group_id)

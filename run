@@ -1,3 +1,3 @@
 #!/bin/sh
 (cd supybot; ln -sf ../plugins)
-exec ./run.py oink.conf
+exec ./run.py oink.conf "$@"

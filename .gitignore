@@ -1,0 +1,9 @@
+backup
+*.bak
+conf
+*.conf
+config
+cookie
+data
+logs
+*.pyc

@@ -62,7 +62,7 @@ class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
                 continue
             method(msg)
         while self.msgs:
-            self.irc.feedMsg(self.msgs.pop())
+            self.irc.feedMsg(self.msgs.pop(0))
 
     def connect(self, **kwargs):
         thread = Thread(target=smart_qq_main)

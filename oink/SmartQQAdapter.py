@@ -80,12 +80,11 @@ class SmartQQAdapter(drivers.IrcDriver, drivers.ServersMixin):
 
     def send_NICK(self, msg):
         self.nick = msg.args[0]
-        pass
 
     def send_USER(self, msg):
         self.connect()
         self.msgs.append(ircmsgs.IrcMsg('', "001", (self.nick, 'Welcome')))
-        self.msgs.append(ircmsgs.IrcMsg('', "376", ('End of /MOTD command.', )))
+        self.msgs.append(ircmsgs.IrcMsg('', "376", (self.nick, 'End of /MOTD command.', )))
 
     def send_PING(self, msg):
         self.msgs.append(ircmsgs.pong(msg.args[0]))

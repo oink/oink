@@ -76,7 +76,6 @@ class Cpp(callbacks.PluginRegexp):
             if replyTo == "geordi" and irc.network == "FreeNode":
                 (me, text) = msg.args
                 self._replyIrc.queueMsg(callbacks.reply(self._replyMsg, text))
-                print "ignored"
                 return None
         return msg
 
@@ -94,12 +93,10 @@ class Cpp(callbacks.PluginRegexp):
 
     def matchCode(self, irc, msg, match):
         r"^(<<.*|\{.*\}.*)$"
-        print "matchcode"
         self._forwardRequest(irc, msg, callbacks.addressed(irc.nick, msg))
 
     def matchCodeChecked(self, irc, msg, match):
         (channel, text) = msg.args
-        print "matchcode"
         if irc.isChannel(channel):
             if channel not in self.registryValue('channels'):
                 return

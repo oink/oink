@@ -1,0 +1,1 @@
+../Supybot/scripts/supybot

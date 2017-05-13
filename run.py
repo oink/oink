@@ -6,8 +6,5 @@ import sys
 here = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(here)
 
-from smart_qq_bot.main import patch
-patch()
-
-from oink import main
-main.run()
+from supybot_main import main
+main()

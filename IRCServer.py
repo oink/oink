@@ -250,9 +250,6 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
         pass
 
     def joinPart(self, channels, isJoin):
-        import traceback
-        traceback.print_stack()
-
         validChannels = self.fetch(
             lambda: [channel for channel in channels if self.server.findGroupByChannel(channel)]
         )

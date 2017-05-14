@@ -415,7 +415,11 @@ class IRCServer(socketserver.ThreadingTCPServer):
         nick = self.toIrcNick(nick)
         return "%s!%s@qq.com" % (nick, guin)
 
-    colorRegex = re.compile(r'\x03[0-9]{1,2}(?:,[0-9]{1,2})') # color
+    colorRegex = re.compile(r'\x03[0-9]{1,2}(?:,[0-9]{1,2})?') # color
+    hiddenRegex = re.compile(r'\x030,0.*') # color white,white
     colorModeRegex = re.compile(r'\x03|\x02|\x16|\x1F|\x1D') # color, bold, reverse, underline, italics
     def stripColorCode(self, content):
-        return self.colorModeRegex.sub('', self.colorRegex.sub('', content))
+        content = self.hiddenRegex.sub('', content)
+        content = self.colorRegex.sub('', content)
+        content = self.colorModeRegex.sub('', content)
+        return content

@@ -1,4 +1,4 @@
 #!/bin/sh
 (cd supybot; ln -sf ../plugins)
-export PYTHONPATH=.
+export PYTHONPATH=$(dirname $(readlink -f "$0"))
 exec python ./supybot_main.py oink.conf "$@"

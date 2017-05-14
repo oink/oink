@@ -75,7 +75,7 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
         try:
             self.fetch_result = (fetcher(*args, **kwargs), None)
         except Exception as e:
-            self.fetch_except = (None, e)
+            self.fetch_result = (None, e)
         finally:
             self.fetch_cv.notify()
             self.fetch_cv.release()
@@ -312,8 +312,33 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
         self.ircmsg(self.nick, "QUIT", "Client Quit")
         raise IrcQuit(*(args[:1]))
 
+    def doPRIVMSG(self, targets, content):
+        for targetName in set(targets.split(',')):
+            if targetName.startswith('#'):
+                target = self.fetch(lambda: self.server.findGroupByChannel(targetName))
+            elif targetName.startswith('&'):
+                target = None
+            else:
+                target = self.fetch(lambda: self.server.findBuddy(targetName))
+            if not target:
+                self.ircmsg(None, ERR_NOSUCHNICK, self.nick, targetName, 'No such nick/channel')
+                continue
+            self.server.bot.SendTo(target, content)
+
     def onQQMessage(self, contact, member, content):
-        pass
+        if not contact.qq:
+            ERROR("missing contact.qq for message %s" % content)
+            return
+
+        if member is not None:
+            if not member.qq:
+                ERROR("missing member.qq for message %s" % content)
+                return
+            hostmask = self.server.buildHostmask(member.name, member.qq)
+            self.ircmsg(hostmask, 'PRIVMSG', '#' + contact.qq, content)
+        else:
+            hostmask = self.server.buildHostmask(contact.qq, contact.qq)
+            self.ircmsg(hostmask, 'PRIVMSG', self.me, content)
 
 class IRCServer(socketserver.ThreadingTCPServer):
     def __init__(self, bot):
@@ -330,16 +355,38 @@ class IRCServer(socketserver.ThreadingTCPServer):
         self.clients.remove(client)
 
     def onQQMessage(self, contact, member, content):
-        for client in clients:
+        for client in self.clients:
             client.onQQMessage(contact, member, content)
 
     def findGroupByChannel(self, channel):
-        if channel.startswith('#'):
-            channel = channel[1:]
-            if channel.isdigit():
-                group = self.bot.List("group", channel)
-                if len(group) == 1 and group[0].qq:
-                    return group[0]
+        if not channel or not channel.startswith('#'):
+            return
+        channel = channel[1:]
+        if not channel.isdigit():
+            return
+        group = self.bot.List("group", channel)
+        if len(group) != 1 or not group[0].qq:
+            return
+        return group[0]
+
+    def findBuddy(self, guin):
+        if not guin or not guin.isdigit():
+            return
+        buddy = self.bot.List("buddy", guin)
+        if len(buddy) != 1 or not buddy[0].qq:
+            return
+        return buddy[0]
+
+    def findBuddyByHostmask(self, hostmask):
+        return self.findBuddy(self.hostmaskToGuin(hostmask))
+
+    def hostmaskToGuin(self, hostmask):
+        if '!' not in hostmask:
+            return
+        hostmask = hostmask.split('!', 2)[1]
+        if '@' not in hostmask:
+            return
+        return hostmask.split('@', 2)[0]
 
     invalidNickChars = { ord(c): None for c in '# 　\t!@$'}
     def toIrcNick(self, nick):

@@ -294,7 +294,8 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
             if not member.qq:
                 continue
 
-            hostmask = self.server.buildHostmask(member.name, member.qq).encode('utf8')
+            memberName = self.nick if member.qq == self.id else member.name
+            hostmask = self.server.buildHostmask(memberName, member.qq).encode('utf8')
             if len(namesBuffer) + len(hostmask) + 1 >= 500:
                 self.sendLine(namesBuffer)
                 namesBuffer = prefix

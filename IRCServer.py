@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import threading
+import re
+
 try:
     import socketserver
 except ImportError:
@@ -313,6 +315,23 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
         raise IrcQuit(*(args[:1]))
 
     def doPRIVMSG(self, targets, content):
+        return self.message(False, targets, content)
+    def doNOTICE(self, targets, content):
+        return self.message(True, targets, content)
+
+    def message(self, isNotice, targets, content):
+        if content.startswith("\x01") and content.endswith("\x01"):
+            content = content[1:-1]
+            if ' ' in content:
+                ctcpType, content = content.split(' ', 2)
+                if ctcpType != 'ACTION':
+                    return 1
+                content = '* ' + content
+        if isNotice:
+            content = 'NOTICE: ' + content
+
+        content = self.server.stripColorCode(content)
+
         for targetName in set(targets.split(',')):
             if targetName.startswith('#'):
                 target = self.fetch(lambda: self.server.findGroupByChannel(targetName))
@@ -395,3 +414,8 @@ class IRCServer(socketserver.ThreadingTCPServer):
     def buildHostmask(self, nick, guin):
         nick = self.toIrcNick(nick)
         return "%s!%s@qq.com" % (nick, guin)
+
+    colorRegex = re.compile(r'\x03[0-9]{1,2}(?:,[0-9]{1,2})') # color
+    colorModeRegex = re.compile(r'\x03|\x02|\x16|\x1F|\x1D') # color, bold, reverse, underline, italics
+    def stripColorCode(self, content):
+        return self.colorModeRegex.sub('', self.colorRegex.sub('', content))

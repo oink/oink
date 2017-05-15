@@ -218,8 +218,8 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
     def doQUIT_(self, *args):
         raise IrcQuit(*args)
 
-    def doPING_(self, arg):
-        pass
+    def doPING_(self, *args):
+        self.ircmsg(None, 'PONG', *args)
 
     def doPONG_(self, arg):
         pass
@@ -243,8 +243,8 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
         self.me = self.server.buildHostmask(self.nick, self.id)
         self.ircmsg(oldme, "NICK", self.nick)
 
-    def doPING(self, arg):
-        pass
+    def doPING(self, *args):
+        self.ircmsg(None, 'PONG', *args)
 
     def doPONG(self, arg):
         pass

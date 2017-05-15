@@ -17,6 +17,8 @@ class QQBotToIRCAdapter(QQBot):
         self.server = IRCServer(self)
 
     def onQQMessage(self, contact, member, content):
+        content = content.replace('&lt;', '<')
+        content = content.replace('&gt;', '>')
         self.server.onQQMessage(contact, member, content)
 
     def onStartupComplete(self):

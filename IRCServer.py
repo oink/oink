@@ -24,7 +24,8 @@ class IrcError(IrcException):
     pass
 
 SRV_NAME    = "QQBotToIRCAdapter"
-SRV_PREFIX  = ":qq.bot"
+SRV_PREFIX  = "qq.bot"
+_SRV_PREFIX = ':' + SRV_PREFIX
 SRV_VERSION = "0.1"
 SRV_WELCOME = "Welcome to %s v%s" % (SRV_NAME, SRV_VERSION)
 
@@ -138,7 +139,7 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
         if args[0]:
             args[0] = ':' + args[0]
         else:
-            args[0] = SRV_PREFIX
+            args[0] = _SRV_PREFIX
         if len(args) >= 3:
             args[-1] = ':' + args[-1]
         self.sendLine(' '.join(args))

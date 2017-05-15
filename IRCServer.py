@@ -345,6 +345,7 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
                 continue
             self.server.bot.SendTo(target, content)
 
+    newLineRegex = re.compile("[\r\n]+")
     def onQQMessage(self, contact, member, content):
         if not contact.qq:
             ERROR("missing contact.qq for message %s" % content)
@@ -355,10 +356,13 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
                 ERROR("missing member.qq for message %s" % content)
                 return
             hostmask = self.server.buildHostmask(member.name, member.qq)
-            self.ircmsg(hostmask, 'PRIVMSG', '#' + contact.qq, content)
+            target = '#' + contact.qq
         else:
             hostmask = self.server.buildHostmask(contact.qq, contact.qq)
-            self.ircmsg(hostmask, 'PRIVMSG', self.me, content)
+            target = self.me
+
+        for line in self.newLineRegex.split(content):
+            self.ircmsg(hostmask, 'PRIVMSG', target, line)
 
 class IRCServer(socketserver.ThreadingTCPServer):
     def __init__(self, bot):

@@ -42,7 +42,7 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
     crlf = "\r\n".encode("utf8")
 
     def setup(self):
-        super().setup()
+        socketserver.StreamRequestHandler.setup(self)
 
         self.nick = None
         self.realname = None
@@ -65,7 +65,7 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
 
     def finish(self):
         self.server.removeClient(self)
-        super().finish()
+        socketserver.StreamRequestHandler.finish(self)
         INFO("finish()")
 
     def exit(self):
@@ -370,7 +370,7 @@ class IRCServer(socketserver.ThreadingTCPServer):
         self.allow_reuse_address = True
         self.bot = bot
         self.clients = set()
-        super().__init__((HOST, PORT), IRCRequestHandler)
+        socketserver.ThreadingTCPServer.__init__(self, (HOST, PORT), IRCRequestHandler)
 
     def addClient(self, client):
         self.clients.add(client)

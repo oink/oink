@@ -308,8 +308,15 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
 
         self.ircmsg(None, '366', self.nick, channel, 'End of /NAMES list.')
 
+    def doWHO(self, nick):
+        if nick == self.nick:
+            self.ircmsg(None, '352', self.nick, '*', self.id, 'qq.com', SRV_PREFIX, self.nick, 'HB', '%d %s' % (0, self.realname))
+        self.ircmsg(None, '315', self.nick, nick, 'End of /WHO list.')
+
     def doUSERHOST(self, *args):
-        pass
+        for user in args:
+            if args == self.nick:
+                self.ircmsg(None, '302', self.nick, self.buildHostmask(self.nick, self.id))
 
     def doQUIT(self, *args):
         self.ircmsg(self.nick, "QUIT", "Client Quit")

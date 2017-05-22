@@ -447,7 +447,7 @@ class IRCServer(socketserver.ThreadingTCPServer):
             return
         return hostmask.split('@', 2)[0]
 
-    invalidNickChars = { ord(c): None for c in '# 　\t!@$'}
+    invalidNickChars = { ord(c): None for c in '# 　\t!~@$'}
     def toIrcNick(self, nick):
         return str(nick).translate(self.invalidNickChars)
 

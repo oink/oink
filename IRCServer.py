@@ -48,6 +48,8 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
         self.realname = None
         self.password = None
         self.me = None
+        self.isSupported = {}
+        self.initialJoinPending = True
         self.lineProcessor_ = self.processLine_unregistered
         self.senderQueue = Queue.Queue()
 
@@ -230,12 +232,15 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
         self.lineProcessor_ = self.processLine_registered
         self.me = self.server.buildHostmask(self.nick, self.id)
         self.ircmsg(None, RPL_WELCOME, self.nick, SRV_WELCOME)
+        self.ircmsg(None, '004', self.nick, SRV_PREFIX, 'qqbot', 'i', 'b', 'n')
+        self.ircmsg(None, '005', self.nick,
+                "CHANTYPES=#&",
+                "PREFIX=" + self.server.IsSupported_prefix,
+                "NETWORK=SmartQQ",
+                "CHARSET=UTF-8",
+                "NAMESX",
+                "are supported by this server")
         self.ircmsg(None, '376', self.nick, 'End of MOTD command.')
-
-        channels = self.fetch(
-            lambda: ['#' + group.qq for group in self.server.bot.List("group")]
-        )
-        self.joinPart(channels, True)
 
     def doNICK(self, nick):
         oldme = self.me
@@ -267,10 +272,23 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
             self.doTOPIC(channel)
             self.doNAMES(channel)
 
-    def doPART(self, channels):
+    def doPROTOCTL(self, *protos):
+        for proto in protos:
+            self.isSupported[proto.upper()] = True
+
+    def doPART(self, channels, reason=None):
         self.joinPart(channels.split(','), False)
 
+    def joinAll(self):
+        channels = self.fetch(
+            lambda: ['#' + group.qq for group in self.server.bot.List("group")]
+        )
+        self.joinPart(channels, True)
+
     def doJOIN(self, channels, key=None):
+        if self.initialJoinPending:
+            self.initialJoinPending = False
+            self.joinAll()
         self.joinPart(channels.split(','), True)
 
     def doTOPIC(self, channel, topic=None):
@@ -290,12 +308,19 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
         prefix = (':%s 353 %s @ %s :' % (SRV_PREFIX, self.nick, channel)).encode('utf8')
         namesBuffer = prefix
 
+        namesx = "NAMESX" in self.isSupported
         for member in self.fetch(fetchMembers) or []:
             if not member.qq:
                 continue
 
             memberName = self.nick if member.qq == self.id else member.name
-            hostmask = self.server.buildHostmask(memberName, member.qq).encode('utf8')
+            hostmask = self.server.roleToPrefix[member.role_id]
+            if namesx:
+                hostmask += self.server.buildHostmask(memberName, member.qq)
+            else:
+                hostmask += memberName
+            hostmask = hostmask.encode('utf8')
+
             if len(namesBuffer) + len(hostmask) + 1 >= 500:
                 self.sendLine(namesBuffer)
                 namesBuffer = prefix
@@ -372,6 +397,9 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
             self.ircmsg(hostmask, 'PRIVMSG', target, line)
 
 class IRCServer(socketserver.ThreadingTCPServer):
+    IsSupported_prefix = "(qo)~@"
+    roleToPrefix = ['~@', '@', '', '']
+
     def __init__(self, bot):
         self.daemon_threads = True
         self.allow_reuse_address = True

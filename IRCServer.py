@@ -299,26 +299,23 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
         else:
             self.ircmsg(None, '403', self.nick, channel, 'No such channel')
 
-    def doNAMES(self, channel):
-        def fetchMembers():
-            group = self.server.findGroupByChannel(channel)
-            if group:
-                return self.server.bot.List(group)
+    def memberName(self, member):
+        return self.nick if member.qq == self.id else member.name
 
+    def doNAMES(self, channel):
         prefix = (':%s 353 %s @ %s :' % (SRV_PREFIX, self.nick, channel)).encode('utf8')
         namesBuffer = prefix
 
         namesx = "NAMESX" in self.isSupported
-        for member in self.fetch(fetchMembers) or []:
+        for member in self.fetch(lambda: self.server.findMembersByChannel(channel)) or []:
             if not member.qq:
                 continue
 
-            memberName = self.nick if member.qq == self.id else member.name
             hostmask = self.server.roleToPrefix[member.role_id]
             if namesx:
-                hostmask += self.server.buildHostmask(memberName, member.qq)
+                hostmask += self.server.buildHostmask(self.memberName(member), member.qq)
             else:
-                hostmask += memberName
+                hostmask += self.server.toIrcNick(self.memberName(member))
             hostmask = hostmask.encode('utf8')
 
             if len(namesBuffer) + len(hostmask) + 1 >= 500:
@@ -333,10 +330,18 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
 
         self.ircmsg(None, '366', self.nick, channel, 'End of /NAMES list.')
 
-    def doWHO(self, nick):
-        if nick == self.nick:
-            self.ircmsg(None, '352', self.nick, '*', self.id, 'qq.com', SRV_PREFIX, self.nick, 'HB', '%d %s' % (0, self.realname))
-        self.ircmsg(None, '315', self.nick, nick, 'End of /WHO list.')
+    def doWHO(self, target):
+        if target.lower() == self.nick.lower():
+            self.ircmsg(None, '352', self.nick, '*',
+                    self.id, 'qq.com', SRV_PREFIX, self.nick,
+                    'HrB', '%d %s' % (0, self.realname))
+        elif target.startswith('#'):
+            channel = target
+            for member in self.fetch(lambda: self.server.findMembersByChannel(channel)) or []:
+                self.ircmsg(None, '352', self.nick, channel,
+                        member.qq, 'qq.com', SRV_PREFIX, self.server.toIrcNick(self.memberName(member)),
+                        'Hr' + self.server.roleToPrefix[member.role_id], '0 .')
+        self.ircmsg(None, '315', self.nick, target, 'End of /WHO list.')
 
     def doUSERHOST(self, *args):
         for user in args:
@@ -427,6 +432,11 @@ class IRCServer(socketserver.ThreadingTCPServer):
         if len(group) != 1 or not group[0].qq:
             return
         return group[0]
+
+    def findMembersByChannel(self, channel):
+        group = self.findGroupByChannel(channel)
+        if group:
+            return self.bot.List(group)
 
     def findBuddy(self, guin):
         if not guin or not guin.isdigit():

@@ -308,7 +308,7 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
 
         namesx = "NAMESX" in self.isSupported
         for member in self.fetch(lambda: self.server.findMembersByChannel(channel)) or []:
-            if not member.qq:
+            if member.qq == '#NULL':
                 continue
 
             hostmask = self.server.roleToPrefix[member.role_id]
@@ -384,12 +384,12 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
 
     newLineRegex = re.compile("[\r\n]+")
     def onQQMessage(self, contact, member, content):
-        if not contact.qq:
+        if contact.qq == '#NULL':
             ERROR("missing contact.qq for message %s" % content)
             return
 
         if member is not None:
-            if not member.qq:
+            if member.qq == '#NULL':
                 ERROR("missing member.qq for message %s" % content)
                 return
             hostmask = self.server.buildHostmask(member.name, member.qq)
@@ -429,7 +429,7 @@ class IRCServer(socketserver.ThreadingTCPServer):
         if not channel.isdigit():
             return
         group = self.bot.List("group", channel)
-        if len(group) != 1 or not group[0].qq:
+        if len(group) != 1 or group[0].qq == '#NULL':
             return
         return group[0]
 
@@ -442,7 +442,7 @@ class IRCServer(socketserver.ThreadingTCPServer):
         if not guin or not guin.isdigit():
             return
         buddy = self.bot.List("buddy", guin)
-        if len(buddy) != 1 or not buddy[0].qq:
+        if len(buddy) != 1 or buddy[0].qq == '#NULL':
             return
         return buddy[0]
 

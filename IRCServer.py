@@ -361,7 +361,7 @@ class IRCRequestHandler(socketserver.StreamRequestHandler):
         if content.startswith("\x01") and content.endswith("\x01"):
             content = content[1:-1]
             if ' ' in content:
-                ctcpType, content = content.split(' ', 2)
+                ctcpType, content = content.split(' ', 1)
                 if ctcpType != 'ACTION':
                     return 1
                 content = '* ' + content
@@ -452,10 +452,10 @@ class IRCServer(socketserver.ThreadingTCPServer):
     def hostmaskToGuin(self, hostmask):
         if '!' not in hostmask:
             return
-        hostmask = hostmask.split('!', 2)[1]
+        hostmask = hostmask.split('!', 1)[1]
         if '@' not in hostmask:
             return
-        return hostmask.split('@', 2)[0]
+        return hostmask.split('@', 1)[0]
 
     invalidNickChars = { ord(c): '_' for c in '# 　\t!~@$'}
     def toIrcNick(self, nick):

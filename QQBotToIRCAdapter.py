@@ -25,4 +25,4 @@ class QQBotToIRCAdapter(QQBot):
         StartDaemonThread(self.server.serve_forever)
 
 if __name__ == '__main__':
-    RunBot(QQBotToIRCAdapter, None, "qqbot")
+    RunBot(QQBotToIRCAdapter)

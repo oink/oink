@@ -74,6 +74,7 @@ class UniqNameMap:
 
 class IRCClient(socketserver.StreamRequestHandler):
     crlf = "\r\n".encode("utf8")
+    rawChannel = '+all+'
 
     def setup(self):
         socketserver.StreamRequestHandler.setup(self)
@@ -87,6 +88,7 @@ class IRCClient(socketserver.StreamRequestHandler):
         self.useNickNames = False
         self.channelNames = UniqNameMap(self, True)
         self.friendNames  = UniqNameMap(self, False)
+        self.initialJoinPending = True
 
         self.lineProcessor_ = self.processLine_unregistered
         self.senderQueue = Queue.Queue()
@@ -272,7 +274,7 @@ class IRCClient(socketserver.StreamRequestHandler):
         self.ircmsg(None, RPL_WELCOME, self.nick, SRV_WELCOME)
         self.ircmsg(None, '004', self.nick, SRV_PREFIX, 'qqbot', 'i', 'b', 'n')
         self.ircmsg(None, '005', self.nick,
-                "CHANTYPES=#&",
+                "CHANTYPES=#+",
                 "PREFIX=" + self.server.IsSupported_prefix,
                 "NETWORK=SmartQQ",
                 "CHARSET=UTF-8",
@@ -336,6 +338,14 @@ class IRCClient(socketserver.StreamRequestHandler):
             return self.server.bot.List(group)
 
     def join(self, channels):
+        if len(channels) == 1 and channels[0] == self.rawChannel:
+            channel = self.rawChannel
+            self.registerFriendNames_()
+            self.ircmsg(self.me, 'JOIN', channel)
+            self.doNAMES(channel)
+            self.doTOPIC(channel)
+            return
+
         self.registerChannelNames_()
         validGroups = self.fetch(lambda: {
             channel:
@@ -352,6 +362,10 @@ class IRCClient(socketserver.StreamRequestHandler):
         self.joinGroups_(self.fetch(lambda: self.server.bot.List("group")))
 
     def doJOIN(self, channels, key=None):
+        if self.initialJoinPending:
+            self.initialJoinPending = False
+            self.join([self.rawChannel])
+
         if channels == '*':
             self.joinAll()
         else:
@@ -359,6 +373,10 @@ class IRCClient(socketserver.StreamRequestHandler):
 
     def doPART(self, channels, reason=None):
         for channel in channels.split(','):
+            if channel == self.rawChannel:
+                self.join([self.rawChannel])
+                continue
+
             try:
                 self.joinedChannels.remove(channel)
             except KeyError:
@@ -388,6 +406,10 @@ class IRCClient(socketserver.StreamRequestHandler):
         self.ircmsg(None, '323', self.nick, 'End of /LIST')
 
     def doTOPIC(self, channel, topic=None):
+        if channel == self.rawChannel:
+            self.ircmsg(None, '332', self.nick, channel, '')
+            self.ircmsg(None, '333', self.nick, channel, SRV_PREFIX, str(int(time.time())))
+            return
         group = self.fetch(lambda: self.findGroupByChannel_(channel))
         if group:
             topic = group.nick + ' | ' + group.mark + ' | '+ group.gcode
@@ -404,11 +426,18 @@ class IRCClient(socketserver.StreamRequestHandler):
         namesBuffer = prefix
 
         namesx = "NAMESX" in self.isSupported
-        for member in self.fetch(lambda: self.findMembersByChannel_(channel)) or []:
+        if channel == self.rawChannel:
+            members = self.fetch(lambda: self.server.bot.List("buddy")) or []
+            isChannel = False
+        else:
+            members = self.fetch(lambda: self.findMembersByChannel_(channel)) or []
+            isChannel = True
+
+        for member in members:
             if member.qq == '#NULL':
                 continue
 
-            hostmask = self.server.roleToPrefix[member.role_id]
+            hostmask = self.server.roleToPrefix[member.role_id] if isChannel else ''
             if namesx:
                 hostmask += self.server.buildHostmask(self.server.toIrcNick(self.memberName(member)), member.qq)
             else:

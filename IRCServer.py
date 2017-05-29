@@ -46,13 +46,15 @@ class UniqNameMap:
         self.toIRC = IrcDict()
         self.isChannel = isChannel
 
-    def remember(self, nick, qq):
+    def register(self, nick, qq):
         if qq == '#NULL' or not nick:
             return False
         if qq in self.toIRC:
             return True
 
-        if not self.client.useNickNames:
+        if qq == self.client.qq and not self.isChannel:
+            pass
+        elif self.isChannel and not self.client.useNamedChannel:
             nick = qq
         else:
             nick = self.client.server.toIrcNick(nick)
@@ -85,10 +87,12 @@ class IRCClient(socketserver.StreamRequestHandler):
         self.me = None
         self.isSupported = IrcSet()
         self.joinedChannels = IrcSet()
-        self.useNickNames = False
+        self.useNamedChannel = False
         self.channelNames = UniqNameMap(self, True)
-        self.friendNames  = UniqNameMap(self, False)
-        self.initialJoinPending = True
+        self.nickNames    = UniqNameMap(self, False)
+        self.onProtocolDecided = self.onProtocolDecided_
+        self.onQQMessage = self.onQQMessage_pending
+        self.qqMessageQueue = []
 
         self.lineProcessor_ = self.processLine_unregistered
         self.senderQueue = Queue.Queue()
@@ -253,7 +257,7 @@ class IRCClient(socketserver.StreamRequestHandler):
     def doUSER_(self, email, mode, unused, realname):
         # ignore args unless QQ api allow setting these values
         self.realname = realname
-        self.id = self.server.bot.conf.qq
+        self.qq = self.server.bot.conf.qq
         if self.nick is not None:
             self.register()
 
@@ -270,7 +274,7 @@ class IRCClient(socketserver.StreamRequestHandler):
         if self.password is None:
             raise IrcError("Password invalidate")
         self.lineProcessor_ = self.processLine_registered
-        self.me = self.server.buildHostmask(self.nick, self.id)
+        self.me = self.server.buildHostmask(self.nick, self.qq)
         self.ircmsg(None, RPL_WELCOME, self.nick, SRV_WELCOME)
         self.ircmsg(None, '004', self.nick, SRV_PREFIX, 'qqbot', 'i', 'b', 'n')
         self.ircmsg(None, '005', self.nick,
@@ -279,14 +283,14 @@ class IRCClient(socketserver.StreamRequestHandler):
                 "NETWORK=SmartQQ",
                 "CHARSET=UTF-8",
                 "NAMESX",
-                "NICKNAMES",
+                "NAMEDCHANNEL",
                 "are supported by this server")
         self.ircmsg(None, '376', self.nick, 'End of MOTD command.')
 
     def doNICK(self, nick):
         oldme = self.me
         self.nick = nick
-        self.me = self.server.buildHostmask(self.nick, self.id)
+        self.me = self.server.buildHostmask(self.nick, self.qq)
         self.ircmsg(oldme, "NICK", self.nick)
 
     def doPING(self, *args):
@@ -301,17 +305,32 @@ class IRCClient(socketserver.StreamRequestHandler):
     def doPROTOCTL(self, *protos):
         for proto in protos:
             self.isSupported.add(proto)
-        self.useNickNames = "NICKNAMES" in self.isSupported
+        self.useNamedChannel = "NAMEDCHANNEL" in self.isSupported
+
+    def onProtocolDecided_(self):
+        self.onProtocolDecided = None
+        self.nickNames.register(self.nick, self.qq)
+        self.join([self.rawChannel])
+        for (args, kwargs) in self.qqMessageQueue:
+            self.onQQMessage_real(*args, **kwargs)
+        self.qqMessageQueue = None
+        self.onQQMessage = self.onQQMessage_real
 
     def registerNames_(self, names, rows):
         for row in rows:
-            names.remember(row.nick, row.qq)
+            names.register(row.name, row.qq)
 
     def registerChannelNames_(self):
         self.registerNames_(self.channelNames, self.fetch(lambda: self.server.bot.List("group")))
 
-    def registerFriendNames_(self):
-        self.registerNames_(self.friendNames, self.fetch(lambda: self.server.bot.List("buddy")))
+    def registerNickNames_(self):
+        self.registerNames_(self.nickNames, self.fetch(lambda: self.server.bot.List("buddy")))
+        def allGroupMembers():
+            members = []
+            for group in self.server.bot.List("group"):
+                members += self.server.bot.List(group)
+            return members
+        self.registerNames_(self.nickNames, self.fetch(allGroupMembers))
 
     def joinGroups_(self, groups):
         for group in groups:
@@ -340,7 +359,7 @@ class IRCClient(socketserver.StreamRequestHandler):
     def join(self, channels):
         if len(channels) == 1 and channels[0] == self.rawChannel:
             channel = self.rawChannel
-            self.registerFriendNames_()
+            self.registerNickNames_()
             self.ircmsg(self.me, 'JOIN', channel)
             self.doNAMES(channel)
             self.doTOPIC(channel)
@@ -362,9 +381,9 @@ class IRCClient(socketserver.StreamRequestHandler):
         self.joinGroups_(self.fetch(lambda: self.server.bot.List("group")))
 
     def doJOIN(self, channels, key=None):
-        if self.initialJoinPending:
-            self.initialJoinPending = False
-            self.join([self.rawChannel])
+        if self.onProtocolDecided:
+            # after PROTOCTL
+            self.onProtocolDecided()
 
         if channels == '*':
             self.joinAll()
@@ -418,9 +437,6 @@ class IRCClient(socketserver.StreamRequestHandler):
         else:
             self.ircmsg(None, '403', self.nick, channel, 'No such channel')
 
-    def memberName(self, member):
-        return self.nick if member.qq == self.id else member.name
-
     def doNAMES(self, channel):
         prefix = (':%s 353 %s @ %s :' % (SRV_PREFIX, self.nick, channel)).encode('utf8')
         namesBuffer = prefix
@@ -428,6 +444,9 @@ class IRCClient(socketserver.StreamRequestHandler):
         namesx = "NAMESX" in self.isSupported
         if channel == self.rawChannel:
             members = self.fetch(lambda: self.server.bot.List("buddy")) or []
+            class MySelf(object):
+                qq = self.qq
+            members.append(MySelf())
             isChannel = False
         else:
             members = self.fetch(lambda: self.findMembersByChannel_(channel)) or []
@@ -438,10 +457,11 @@ class IRCClient(socketserver.StreamRequestHandler):
                 continue
 
             hostmask = self.server.roleToPrefix[member.role_id] if isChannel else ''
+            nick = self.nickNames.toIRC[member.qq]
             if namesx:
-                hostmask += self.server.buildHostmask(self.server.toIrcNick(self.memberName(member)), member.qq)
+                hostmask += self.server.buildHostmask(nick, member.qq)
             else:
-                hostmask += self.server.toIrcNick(self.memberName(member))
+                hostmask += nick
             hostmask = hostmask.encode('utf8')
 
             if len(namesBuffer) + len(hostmask) + 1 >= 500:
@@ -459,20 +479,32 @@ class IRCClient(socketserver.StreamRequestHandler):
     def doWHO(self, target):
         if target.lower() == self.nick.lower():
             self.ircmsg(None, '352', self.nick, '*',
-                    self.id, 'qq.com', SRV_PREFIX, self.nick,
+                    self.qq, 'qq.com', SRV_PREFIX, self.nick,
                     'HrB', '%d %s' % (0, self.realname))
         elif target.startswith('#'):
             channel = target
             for member in self.fetch(lambda: self.findMembersByChannel_(channel)) or []:
                 self.ircmsg(None, '352', self.nick, channel,
-                        member.qq, 'qq.com', SRV_PREFIX, self.server.toIrcNick(self.memberName(member)),
+                        member.qq, 'qq.com', SRV_PREFIX, self.nickNames.toIRC[qq],
                         'Hr' + self.server.roleToPrefix[member.role_id], '0 .')
+        elif target.startswith('+'):
+            channel = target
+            self.ircmsg(None, '352', self.nick, channel,
+                    self.qq, 'qq.com', SRV_PREFIX, self.nick,
+                    'Hr', '0 .')
+            for member in self.fetch(lambda: self.server.bot.List("buddy")) or []:
+                self.ircmsg(None, '352', self.nick, channel,
+                        member.qq, 'qq.com', SRV_PREFIX, self.nickNames.toIRC[qq],
+                        'Hr', '0 .')
         self.ircmsg(None, '315', self.nick, target, 'End of /WHO list.')
 
     def doUSERHOST(self, *args):
-        for user in args:
-            if args == self.nick:
-                self.ircmsg(None, '302', self.nick, self.buildHostmask(self.nick, self.id))
+        for nick in args:
+            if nick.lower() == self.nick.lower():
+                qq = self.qq
+            else:
+                qq = self.nickNames.toQQ[nick]
+            self.ircmsg(None, '302', self.nick, self.server.buildHostmask(nick, qq))
 
     def doQUIT(self, *args):
         self.ircmsg(self.nick, "QUIT", "Client Quit")
@@ -511,7 +543,10 @@ class IRCClient(socketserver.StreamRequestHandler):
     newLineRegex = re.compile("[\r\n]+")
     # dialog: group or sender buddy
     # member: member in channel
-    def onQQMessage(self, dialog, member, content):
+    def onQQMessage_pending(self, *args, **kwargs):
+        self.qqMessageQueue.append((args, kwargs))
+
+    def onQQMessage_real(self, dialog, member, content):
         if dialog.qq == '#NULL':
             ERROR("missing dialog.qq for message %s" % content)
             return
@@ -520,17 +555,23 @@ class IRCClient(socketserver.StreamRequestHandler):
             if member.qq == '#NULL':
                 ERROR("missing member.qq for message %s" % content)
                 return
-            hostmask = self.server.buildHostmask(self.server.toIrcNick(member.name), member.qq)
+            sender = member
             try:
                 target = self.channelNames.toIRC[dialog.qq]
             except KeyError:
                 target = '#' + dialog.qq
+            isChannel = True
         else:
-            hostmask = self.server.buildHostmask(self.server.toIrcNick(dialog.qq), dialog.qq)
+            sender = dialog
             target = self.me
+            isChannel = False
+        hostmask = self.server.buildHostmask(self.nickNames.toIRC[sender.qq], sender.qq)
 
         for line in self.newLineRegex.split(content):
-            self.ircmsg(hostmask, 'PRIVMSG', target, line)
+            if isChannel and target not in self.joinedChannels:
+                self.ircmsg(hostmask, 'PRIVMSG', self.rawChannel, '%s: %s' % (target, line))
+            else:
+                self.ircmsg(hostmask, 'PRIVMSG', target, line)
 
 class IRCServer(socketserver.ThreadingTCPServer):
     IsSupported_prefix = "(qo)~@"
@@ -572,7 +613,7 @@ class IRCServer(socketserver.ThreadingTCPServer):
             return
         return hostmask.split('@', 1)[0]
 
-    invalidNickChars = { ord(c): '_' for c in '# 　\t!~@$'}
+    invalidNickChars = { ord(c): '_' for c in '# 　\t!~@$&'}
     def toIrcNick(self, nick):
         return str(nick).translate(self.invalidNickChars)
 

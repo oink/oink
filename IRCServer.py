@@ -8,8 +8,6 @@ try:
 except ImportError:
     import SocketServer as socketserver
 
-HOST, PORT = '127.0.0.1', 6667
-
 from qqbot.utf8logger import DEBUG, ERROR, EXCEPTION, INFO
 from qqbot.mainloop import StartDaemonThread, Put
 from qqbot.common import Queue
@@ -405,12 +403,12 @@ class IRCServer(socketserver.ThreadingTCPServer):
     IsSupported_prefix = "(qo)~@"
     roleToPrefix = ['~@', '@', '', '']
 
-    def __init__(self, bot):
+    def __init__(self, bot, address):
         self.daemon_threads = True
         self.allow_reuse_address = True
         self.bot = bot
         self.clients = set()
-        socketserver.ThreadingTCPServer.__init__(self, (HOST, PORT), IRCRequestHandler)
+        socketserver.ThreadingTCPServer.__init__(self, address, IRCClient)
 
     def addClient(self, client):
         self.clients.add(client)

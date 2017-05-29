@@ -3,6 +3,7 @@
 import threading
 import re
 import time
+import fnmatch
 
 try:
     import socketserver
@@ -362,6 +363,29 @@ class IRCClient(socketserver.StreamRequestHandler):
                 self.joinedChannels.remove(channel)
             except KeyError:
                 self.ircmsg(None, '442', self.nick, channel, "You're not on that channel")
+
+    def doLIST(self, mask='*'):
+        groups = self.fetch(lambda: self.server.bot.List("group"))
+        listGroups = []
+        for group in groups:
+            if group.qq == '#NULL':
+                continue
+            channel = self.channelNames.toIRC[group.qq]
+            if fnmatch.fnmatch(channel, mask):
+                listGroups.append(group)
+
+        memberCounts = self.fetch(lambda: {
+            group.qq:
+                len(self.server.bot.List(group))
+                    for group in listGroups
+        })
+
+        self.ircmsg(None, '321', self.nick, 'Channel', 'Users  Name')
+        for group in listGroups:
+            channel = self.channelNames.toIRC[group.qq]
+            topic = group.nick + ' | ' + group.mark + ' | '+ group.gcode
+            self.ircmsg(None, '322', self.nick, channel, str(memberCounts[group.qq]), topic)
+        self.ircmsg(None, '323', self.nick, 'End of /LIST')
 
     def doTOPIC(self, channel, topic=None):
         group = self.fetch(lambda: self.findGroupByChannel_(channel))

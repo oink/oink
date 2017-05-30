@@ -378,6 +378,7 @@ class IRCClient(socketserver.StreamRequestHandler):
         self.joinGroups_(validGroups.values())
 
     def joinAll(self):
+        self.registerChannelNames_()
         self.joinGroups_(self.fetch(lambda: self.server.bot.List("group")))
 
     def doJOIN(self, channels, key=None):
@@ -531,7 +532,7 @@ class IRCClient(socketserver.StreamRequestHandler):
         for targetName in set(targets.split(',')):
             if targetName.startswith('#'):
                 target = self.fetch(lambda: self.findGroupByChannel_(targetName))
-            elif targetName.startswith('&'):
+            elif targetName.startswith('+'):
                 target = None
             else:
                 target = self.fetch(lambda: self.server.findBuddy(targetName))

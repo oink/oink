@@ -486,7 +486,7 @@ class IRCClient(socketserver.StreamRequestHandler):
             channel = target
             for member in self.fetch(lambda: self.findMembersByChannel_(channel)) or []:
                 self.ircmsg(None, '352', self.nick, channel,
-                        member.qq, 'qq.com', SRV_PREFIX, self.nickNames.toIRC[qq],
+                        member.qq, 'qq.com', SRV_PREFIX, self.nickNames.toIRC[self.qq],
                         'Hr' + self.server.roleToPrefix[member.role_id], '0 .')
         elif target.startswith('+'):
             channel = target
@@ -495,7 +495,7 @@ class IRCClient(socketserver.StreamRequestHandler):
                     'Hr', '0 .')
             for member in self.fetch(lambda: self.server.bot.List("buddy")) or []:
                 self.ircmsg(None, '352', self.nick, channel,
-                        member.qq, 'qq.com', SRV_PREFIX, self.nickNames.toIRC[qq],
+                        member.qq, 'qq.com', SRV_PREFIX, self.nickNames.toIRC[member.qq],
                         'Hr', '0 .')
         self.ircmsg(None, '315', self.nick, target, 'End of /WHO list.')
 

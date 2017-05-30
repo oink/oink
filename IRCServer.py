@@ -386,7 +386,7 @@ class IRCClient(socketserver.StreamRequestHandler):
             # after PROTOCTL
             self.onProtocolDecided()
 
-        if channels == '*':
+        if channels == '#':
             self.joinAll()
         else:
             self.join(channels.split(','))

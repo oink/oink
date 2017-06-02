@@ -322,15 +322,15 @@ class IRCClient(socketserver.StreamRequestHandler):
 
     def registerChannelNames_(self):
         self.registerNames_(self.channelNames, self.fetch(lambda: self.server.bot.List("group")))
-
-    def registerNickNames_(self):
-        self.registerNames_(self.nickNames, self.fetch(lambda: self.server.bot.List("buddy")))
         def allGroupMembers():
             members = []
             for group in self.server.bot.List("group"):
                 members += self.server.bot.List(group)
             return members
         self.registerNames_(self.nickNames, self.fetch(allGroupMembers))
+
+    def registerNickNames_(self):
+        self.registerNames_(self.nickNames, self.fetch(lambda: self.server.bot.List("buddy")))
 
     def joinGroups_(self, groups):
         for group in groups:
@@ -341,6 +341,13 @@ class IRCClient(socketserver.StreamRequestHandler):
             self.doNAMES(channel)
             self.doTOPIC(channel)
             self.joinedChannels.add(channel)
+
+    def findBuddyByNick_(self, nick):
+        qq = self.nickNames.toQQ[nick]
+        buddy = self.server.bot.List("buddy", qq)
+        if len(buddy) != 1 or buddy[0].qq == '#NULL':
+            return
+        return buddy[0]
 
     def findGroupByChannel_(self, channel):
         if not channel or not channel.startswith('#'):
@@ -535,7 +542,7 @@ class IRCClient(socketserver.StreamRequestHandler):
             elif targetName.startswith('+'):
                 target = None
             else:
-                target = self.fetch(lambda: self.server.findBuddy(targetName))
+                target = self.fetch(lambda: self.findBuddyByNick_(targetName))
             if not target:
                 self.ircmsg(None, ERR_NOSUCHNICK, self.nick, targetName, 'No such nick/channel')
                 continue
@@ -594,25 +601,6 @@ class IRCServer(socketserver.ThreadingTCPServer):
     def onQQMessage(self, contact, member, content):
         for client in self.clients:
             client.onQQMessage(contact, member, content)
-
-    def findBuddy(self, guin):
-        if not guin or not guin.isdigit():
-            return
-        buddy = self.bot.List("buddy", guin)
-        if len(buddy) != 1 or buddy[0].qq == '#NULL':
-            return
-        return buddy[0]
-
-    def findBuddyByHostmask(self, hostmask):
-        return self.findBuddy(self.hostmaskToGuin(hostmask))
-
-    def hostmaskToGuin(self, hostmask):
-        if '!' not in hostmask:
-            return
-        hostmask = hostmask.split('!', 1)[1]
-        if '@' not in hostmask:
-            return
-        return hostmask.split('@', 1)[0]
 
     invalidNickChars = { ord(c): '_' for c in '# 　\t!~@$&'}
     def toIrcNick(self, nick):

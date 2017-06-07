@@ -364,15 +364,15 @@ class IRCClient(socketserver.StreamRequestHandler):
             return self.server.bot.List(group)
 
     def join(self, channels):
-        if len(channels) == 1 and channels[0] == self.rawChannel:
-            channel = self.rawChannel
-            self.registerNickNames_()
-            self.ircmsg(self.me, 'JOIN', channel)
-            self.doNAMES(channel)
-            self.doTOPIC(channel)
-            return
-
         self.registerChannelNames_()
+
+        if self.rawChannel in channels:
+            channels.remove(self.rawChannel)
+            self.registerNickNames_()
+            self.ircmsg(self.me, 'JOIN', self.rawChannel)
+            self.doNAMES(self.rawChannel)
+            self.doTOPIC(self.rawChannel)
+
         validGroups = self.fetch(lambda: {
             channel:
                 self.findGroupByChannel_(channel)

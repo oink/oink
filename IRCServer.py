@@ -47,16 +47,18 @@ class UniqNameMap:
         self.isChannel = isChannel
 
     def register(self, nick, qq):
-        if qq == '#NULL' or not nick:
-            return False
         if qq in self.toIRC:
             return True
+        if qq == '#NULL':
+            return False
 
         if qq == self.client.qq and not self.isChannel:
             pass
         elif self.isChannel and not self.client.useNamedChannel:
             nick = qq
         else:
+            if not nick:
+                nick = qq
             nick = self.client.server.toIrcNick(nick)
 
         if self.isChannel:
@@ -65,6 +67,8 @@ class UniqNameMap:
         suffix = ''
         while nick + str(suffix) in self.toQQ:
             if not suffix:
+                if nick[-1].isdigit():
+                    nick += '_'
                 suffix = 1
             else:
                 suffix += 1

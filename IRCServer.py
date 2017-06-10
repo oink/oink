@@ -368,6 +368,12 @@ class IRCClient(socketserver.StreamRequestHandler):
             return self.server.bot.List(group)
 
     def join(self, channels):
+        if '#' in channels:
+            self.joinAll()
+            channels.remove('#')
+            if not channels:
+                return
+
         self.registerChannelNames_()
 
         if self.rawChannel in channels:
@@ -397,10 +403,7 @@ class IRCClient(socketserver.StreamRequestHandler):
             # after PROTOCTL
             self.onProtocolDecided()
 
-        if channels == '#':
-            self.joinAll()
-        else:
-            self.join(channels.split(','))
+        self.join(channels.split(','))
 
     def doPART(self, channels, reason=None):
         for channel in channels.split(','):

@@ -516,7 +516,7 @@ class IRCClient(socketserver.StreamRequestHandler):
                 qq = self.qq
             else:
                 qq = self.nickNames.toQQ[nick]
-            self.ircmsg(None, '302', self.nick, self.server.buildHostmask(nick, qq))
+            self.ircmsg(None, '302', self.nick, self.server.buildHostmask(nick, qq).replace('!', '=', 1))
 
     def doQUIT(self, *args):
         self.ircmsg(self.nick, "QUIT", "Client Quit")
